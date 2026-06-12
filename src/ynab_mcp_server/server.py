@@ -37,7 +37,7 @@ def create_server() -> FastMCP:
     # Create an authenticated HTTP client
     client = httpx.AsyncClient(
         base_url=YNAB_API_BASE,
-        headers={"Authorization": f"Bearer {token}"},
+        headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
         timeout=30.0,
     )
 

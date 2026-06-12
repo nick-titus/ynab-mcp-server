@@ -69,3 +69,25 @@ When a user confirms or corrects a categorization:
 - Use `plan_id=last-used` for all API calls (avoids needing to look up the budget ID)
 - **API filter gotcha:** `type=unapproved` matches the YNAB dashboard's "new transactions" count. `type=uncategorized` returns a much larger set including old approved transfers that are intentionally category-free. Always prefer `unapproved` and filter client-side for `category_id=null`.
 - Transfers between accounts (`transfer_account_id` is set) don't need categories — exclude them from categorization batches
+- **Transfers still need approval** — they show up as unapproved even though they don't need categories. Bulk approve them separately.
+
+## API Efficiency Tips
+
+- **Batch updates:** Use `updateTransactions` (plural) to approve/categorize many transactions in one API call. Pass an array of `{id, approved, category_id}` objects. One call instead of N.
+- **Server knowledge:** Every response includes `server_knowledge`. Pass it as `last_knowledge_of_server` on subsequent calls to only fetch deltas — avoids re-downloading the entire dataset.
+- **Category ID resolution:** Fetch `getCategories` once at the start and build a name→ID map. Category groups have a `categories` array — flatten it. Watch for duplicate names across groups (e.g., "Internet" appears in both "Central Park House" and "Condo").
+- **Categorize without approving:** You can set `category_id` without setting `approved: true`. This pre-fills the category in the YNAB UI so the user can scan and approve faster. Good for Mode 2 (Auto + Flag).
+- **Content-Type header:** The YNAB API requires `Content-Type: application/json` on all write requests. The MCP server's httpx client must include this header.
+- **Transaction parameter wrapping:** When calling `updateTransaction`, the fields must be nested inside a `transaction` JSON object — not passed as top-level parameters.
+- **Amounts:** YNAB uses milliunits (multiply by 1000). Outflows are negative, inflows positive. Display as `abs(amount/1000)` with a direction indicator.
+
+## Categorization Heuristics (learned from sessions)
+
+- **Slush fund rules:** Solo dining → personal slush fund of whoever ate. Family/group dining → Dining Out. Ramen/Asian → usually Nick's (Caitlin has celiac). Bakeries/chocolate → usually Caitlin's.
+- **Chipotle special case:** Over $10 = family meal → Dining Out. Under $10 = solo → Nick's Slush Fund.
+- **Amazon Marketplace vs Amazon Retail:** Marketplace charges (Prime Store Card, payee "Amazon") are uncategorized and need manual review — no way to determine what was ordered from charge amount alone. Amazon Retail charges are auto-categorized as Groceries by YNAB, which is often correct for Whole Foods/pantry items but not always.
+- **Amazon Prime Now** = Whole Foods delivery → Groceries.
+- **Venmo** is ambiguous — could be any category. Always ask. Auto-categorization is unreliable.
+- **Home Depot** small charges ($1-2) = Zoe's suckers. Larger charges need email receipts to categorize.
+- **First Endurance** (sports nutrition) → Joint Discretionary / Miscellaneous, not Coaching & Racing.
+- **Colorado 529:** Two accounts — $300 = Zoe's, $250 = Julian's (separate category: "Lizard #2's 529 Contributions").
